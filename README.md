@@ -25,9 +25,21 @@ Um Progressive Web App (PWA) leve, simples e totalmente offline-first para cicli
 - ✅ **Exportar/Importar** em JSON
 - ✅ **Funciona offline** com Service Worker v3
 - ✅ **Instalável** em Android/iOS (PWA)
-- ✅ **Design mobile-first** responsivo
-- ✅ **Interface minimalista** em tema escuro
+- ✅ **Design moderno** neon verde & dark futurista ✨
+- ✅ **Mobile-first** responsivo (desktop/tablet/mobile)
+- ✅ **Microinterações** suaves com neon glow
 - ✅ **Vanilla JS** sem frameworks pesados
+
+### 🎨 Design Sistema Moderno
+
+- **Cores**: Neon green (#32FF7E) + Dark esverdeado (#0B0F0E)
+- **Tipografia**: Inter, Poppins, Roboto
+- **Layout**: Mapa 85% + Ações 15%
+- **Componentes**: Botões neon, cards elegantes, painéis com backdrop blur
+- **Animações**: Fade-in, glow effects, smooth transitions
+- **Tema**: JackobLab-aligned minimalista futurista
+
+📖 **Guia completo**: Veja [DESIGN_MODERNO.md](./DESIGN_MODERNO.md)
 
 ## 🚀 Começando
 
