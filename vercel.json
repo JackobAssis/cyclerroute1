@@ -2,8 +2,7 @@
   "version": 2,
   "name": "cyclerroute",
   "public": true,
-  "buildCommand": "npm run build",
-  "outputDirectory": "public",
+  
   "regions": ["iad1"],
   "env": {},
   "framework": null,
