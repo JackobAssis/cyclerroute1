@@ -6,7 +6,6 @@
   "outputDirectory": "public",
   "regions": ["iad1"],
   "env": {},
-  "envPrefix": "VITE_",
   "framework": null,
   "rewrites": [
     {
