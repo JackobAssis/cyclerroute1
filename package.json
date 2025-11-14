@@ -27,6 +27,6 @@
     "url": "https://github.com/JackobAssis/CyclerRoute"
   },
   "engines": {
-    "node": "18.x"
+    "node": "22.x"
   }
 }
