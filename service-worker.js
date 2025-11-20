@@ -4,7 +4,7 @@
  * Cache-first para CSS/ícones (para performance)
  */
 
-const CACHE_VERSION = 'v3';
+const CACHE_VERSION = 'v4';
 const CACHE_NAME = `cyclerroute-${CACHE_VERSION}`;
 
 // Assets que SEMPRE devem vir da rede (código executável)
