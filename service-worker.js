@@ -1,10 +1,10 @@
 /**
- * CyclerRoute Service Worker v3
+ * CyclerRoute Service Worker v5
  * Estratégia: Network-first para JS/HTML (sempre nova versão)
  * Cache-first para CSS/ícones (para performance)
  */
 
-const CACHE_VERSION = 'v4';
+const CACHE_VERSION = 'v5';
 const CACHE_NAME = `cyclerroute-${CACHE_VERSION}`;
 
 // Assets que SEMPRE devem vir da rede (código executável)
@@ -30,15 +30,14 @@ const STATIC_ASSETS = [
   '/offline.html',
   '/assets/css/styles.css',
   '/manifest.json',
-  '/assets/icons/icon-192.png',
-  '/assets/icons/icon-512.png',
+  '/assets/icons/icon.svg',
   'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css',
   'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js'
 ];
 
 // Install event - cache static assets apenas
 self.addEventListener('install', (event) => {
-  console.log('[SW] Installing v3...');
+  console.log('[SW] Installing v5...');
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
@@ -142,10 +141,15 @@ self.addEventListener('fetch', (event) => {
               return response;
             }
 
+            // Só cacheia URLs HTTP/HTTPS válidas
             const responseToCache = response.clone();
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(request, responseToCache);
-            });
+            if (request.url.startsWith('http')) {
+              caches.open(CACHE_NAME).then((cache) => {
+                cache.put(request, responseToCache);
+              }).catch(() => {
+                console.warn('[SW] Erro ao cachear:', request.url);
+              });
+            }
 
             return response;
           })
@@ -166,5 +170,5 @@ self.addEventListener('message', (event) => {
   }
 });
 
-console.log('[SW] Service Worker v3 loaded - Network-first strategy');
+console.log('[SW] Service Worker v5 loaded - Network-first strategy');
 
