@@ -1,0 +1,70 @@
+<!-- 
+  SOLUÇÕES PARA OS ERROS REPORTADOS
+  Copie e cole no console do navegador para resolver os problemas
+-->
+
+<!-- 1. Para limpar cache e forçar reload dos módulos -->
+<script>
+// Execute no console do navegador (F12)
+// Limpa todos os caches e força reload
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.getRegistrations().then(registrations => {
+    registrations.forEach(registration => {
+      registration.unregister();
+      console.log('Service Worker desregistrado');
+    });
+  });
+}
+
+// Limpa cache storage
+caches.keys().then(cacheNames => {
+  return Promise.all(
+    cacheNames.map(cacheName => {
+      console.log('Deletando cache:', cacheName);
+      return caches.delete(cacheName);
+    })
+  );
+}).then(() => {
+  console.log('Todos os caches limpos');
+  // Force reload
+  location.reload(true);
+});
+</script>
+
+<!-- 2. Para verificar se os exports estão corretos -->
+<!-- Execute este código no console após o reload -->
+<script>
+// Teste de import dos módulos
+import('./src/map/map-init.js').then(module => {
+  console.log('Módulo map-init carregado:', module);
+  console.log('Funções exportadas:', Object.keys(module));
+  console.log('createDefaultIcon disponível:', typeof module.createDefaultIcon);
+}).catch(err => {
+  console.error('Erro ao carregar módulo:', err);
+});
+</script>
+
+<!-- 3. Verificação de integridade do manifest -->
+<script>
+fetch('/manifest.json')
+  .then(response => response.json())
+  .then(manifest => {
+    console.log('Manifest carregado:', manifest);
+    
+    // Testa cada ícone
+    manifest.icons.forEach((icon, index) => {
+      fetch(icon.src)
+        .then(response => {
+          if (response.ok) {
+            console.log(`✅ Ícone ${index} OK: ${icon.src}`);
+          } else {
+            console.error(`❌ Ícone ${index} ERRO: ${icon.src} - Status: ${response.status}`);
+          }
+        })
+        .catch(err => {
+          console.error(`❌ Ícone ${index} FALHOU: ${icon.src}`, err);
+        });
+    });
+  })
+  .catch(err => console.error('Erro ao carregar manifest:', err));
+</script>

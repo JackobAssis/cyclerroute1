@@ -16,6 +16,8 @@
     
     <!-- Leaflet CSS (mapa) -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+    <!-- Leaflet Routing Machine CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css">
     
     <!-- Icons -->
     <link rel="icon" type="image/svg+xml" href="assets/icons/icon.svg">
@@ -25,67 +27,58 @@
     <meta name="color-scheme" content="dark">
 </head>
 <body>
-    <!-- Header -->
-    <header class="header">
-        <h1 class="header-title">🚴 CyclerRoute</h1>
-        <div class="header-actions">
-            <button id="install-btn" class="btn btn-install" style="display: none;">
-                Instalar
-            </button>
-        </div>
-    </header>
-
     <!-- Main Content -->
     <main id="app">
         <!-- Home Screen -->
         <div id="screen-home" class="screen active">
-            <div class="home-container">
-                <div class="welcome-section">
-                    <h2>Bem-vindo ao CyclerRoute</h2>
-                    <p>Crie, visualize e compartilhe suas rotas de ciclismo</p>
-                </div>
-                
-                <div class="actions-grid">
-                    <button id="btn-create-route" class="btn btn-primary btn-large">
-                        ➕ Criar Rota
-                    </button>
-                    <button id="btn-my-routes" class="btn btn-secondary btn-large">
-                        📋 Minhas Rotas
-                    </button>
-                    <button id="btn-import-route" class="btn btn-secondary btn-large">
-                        📥 Importar Rota
-                    </button>
-                </div>
+            <div id="map-home" class="map-container"></div>
+            
+            <div class="floating-controls home-controls">
+                <button id="btn-create-route" class="btn btn-primary btn-floating">
+                    ➕ Criar Rota
+                </button>
+                <button id="btn-my-routes" class="btn btn-secondary btn-floating">
+                    📋 Minhas Rotas
+                </button>
             </div>
         </div>
 
         <!-- Create Route Screen -->
         <div id="screen-create" class="screen">
-            <div class="screen-header">
-                <button id="btn-back-create" class="btn btn-icon">← Voltar</button>
-                <h2>Criar Rota</h2>
-                <div style="width: 40px;"></div>
-            </div>
+            <div id="map-create" class="map-container"></div>
             
-            <div id="map" class="map-container"></div>
-            
-            <div class="route-controls">
-                <div class="controls-info">
-                    <span id="points-count">Pontos: 0</span>
-                    <span id="distance-display">Distância: 0 km</span>
+            <div class="floating-controls">
+                <button id="btn-back-create" class="btn btn-icon btn-back">← Voltar</button>
+                
+                <div class="route-info-panel">
+                    <div class="info-item">
+                        <span class="info-label">Pontos:</span>
+                        <span id="points-count" class="info-value">0</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Distância:</span>
+                        <span id="distance-display" class="info-value">0 km</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Tempo:</span>
+                        <span id="duration-display" class="info-value">0 min</span>
+                    </div>
                 </div>
-                <div class="controls-buttons">
-                    <button id="btn-undo-point" class="btn btn-secondary">↶ Desfazer</button>
-                    <button id="btn-finish-route" class="btn btn-primary">✓ Salvar Rota</button>
+                
+                <div class="action-buttons">
+                    <button id="btn-clear-route" class="btn btn-danger btn-action">🗑️ Limpar</button>
+                    <button id="btn-save-route" class="btn btn-success btn-action" disabled>💾 Salvar</button>
                 </div>
             </div>
         </div>
 
         <!-- Save Route Dialog -->
         <div id="dialog-save-route" class="modal" style="display: none;">
+            <div class="modal-overlay"></div>
             <div class="modal-content">
                 <h3>Salvar Rota</h3>
-                <input type="text" id="input-route-name" class="input" placeholder="Nome da rota...">
+                <input type="text" id="input-route-name" class="input" placeholder="Nome da rota..." required>
+                <textarea id="input-route-description" class="textarea" placeholder="Descrição (opcional)" rows="3"></textarea>
                 <div class="modal-buttons">
                     <button id="btn-cancel-save" class="btn btn-secondary">Cancelar</button>
                     <button id="btn-confirm-save" class="btn btn-primary">Salvar</button>
@@ -96,65 +89,94 @@
         <!-- My Routes Screen -->
         <div id="screen-routes-list" class="screen">
             <div class="screen-header">
-                <button id="btn-back-list" class="btn btn-icon">← Voltar</button>
+                <button id="btn-back-list" class="btn btn-icon btn-back">← Voltar</button>
                 <h2>Minhas Rotas</h2>
                 <div style="width: 40px;"></div>
             </div>
             
-            <div id="routes-list-container" class="routes-list">
-                <p class="empty-message">Nenhuma rota salva ainda</p>
+            <div id="routes-list-container" class="routes-list"></div>
+            
+            <div id="empty-routes" class="empty-state">
+                <p>Nenhuma rota salva</p>
+                <button id="btn-create-first-route" class="btn btn-primary">Criar Primeira Rota</button>
             </div>
         </div>
 
         <!-- View Route Screen -->
         <div id="screen-view-route" class="screen">
-            <div class="screen-header">
-                <button id="btn-back-view" class="btn btn-icon">← Voltar</button>
-                <h2 id="view-route-title">Visualizar Rota</h2>
-                <div style="width: 40px;"></div>
-            </div>
-            
             <div id="map-view" class="map-container"></div>
             
-            <div class="route-info">
-                <div class="info-grid">
+            <div class="floating-controls">
+                <button id="btn-back-view" class="btn btn-icon btn-back">← Voltar</button>
+                
+                <div class="route-info-panel">
+                    <h3 id="view-route-name" class="route-name"></h3>
+                    <p id="view-route-description" class="route-description"></p>
                     <div class="info-item">
-                        <span class="info-label">Distância</span>
+                        <span class="info-label">Distância:</span>
                         <span id="view-distance" class="info-value">0 km</span>
                     </div>
                     <div class="info-item">
-                        <span class="info-label">Pontos</span>
-                        <span id="view-points" class="info-value">0</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">Criada em</span>
-                        <span id="view-date" class="info-value">--</span>
+                        <span class="info-label">Tempo estimado:</span>
+                        <span id="view-duration" class="info-value">0 min</span>
                     </div>
                 </div>
                 
-                <div class="route-actions">
-                    <button id="btn-navigate-route" class="btn btn-primary">🧭 Percorrer</button>
-                    <button id="btn-export-route" class="btn btn-secondary">📤 Exportar</button>
-                    <button id="btn-delete-route" class="btn btn-danger">🗑️ Deletar</button>
+                <div class="action-buttons">
+                    <button id="btn-navigate-route" class="btn btn-primary btn-action">🧭 Percorrer Rota</button>
                 </div>
             </div>
         </div>
 
         <!-- Navigate Route Screen -->
         <div id="screen-navigate" class="screen">
-            <div class="screen-header">
-                <button id="btn-stop-navigate" class="btn btn-icon">⏹️ Parar</button>
-                <h2>Navegando</h2>
-                <div style="width: 40px;"></div>
-            </div>
-            
             <div id="map-navigate" class="map-container"></div>
             
-            <div class="navigate-info">
-                <div id="next-point" class="next-point">Próximo: Ponto 1</div>
-                <div class="navigate-stats">
-                    <span id="nav-distance">Distância: 0 km</span>
-                    <span id="nav-progress">Progresso: 0%</span>
+            <div class="floating-controls">
+                <button id="btn-stop-navigation" class="btn btn-danger btn-back">⏹ Parar</button>
+                
+                <div class="navigation-panel">
+                    <div class="navigation-status">
+                        <span id="nav-status" class="status-text">Aguardando GPS...</span>
+                    </div>
+                    <div class="navigation-stats">
+                        <div class="stat-item">
+                            <span class="stat-label">Distância restante:</span>
+                            <span id="nav-distance-remaining" class="stat-value">-- km</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Velocidade:</span>
+                            <span id="nav-speed" class="stat-value">0 km/h</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Tempo decorrido:</span>
+                            <span id="nav-time-elapsed" class="stat-value">00:00</span>
+                        </div>
+                    </div>
+                    <div id="nav-warning" class="navigation-warning" style="display: none;">
+                        ⚠️ Você está fora da rota!
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Complete Navigation Dialog -->
+        <div id="dialog-navigation-complete" class="modal" style="display: none;">
+            <div class="modal-overlay"></div>
+            <div class="modal-content">
+                <h3>🎉 Rota Concluída!</h3>
+                <div class="summary-stats">
+                    <div class="summary-item">
+                        <span class="summary-label">Tempo total:</span>
+                        <span id="summary-time" class="summary-value">--</span>
+                    </div>
+                    <div class="summary-item">
+                        <span class="summary-label">Distância percorrida:</span>
+                        <span id="summary-distance" class="summary-value">--</span>
+                    </div>
+                </div>
+                <div class="modal-buttons">
+                    <button id="btn-close-summary" class="btn btn-primary">OK</button>
                 </div>
             </div>
         </div>
@@ -162,9 +184,7 @@
 
     <!-- Scripts -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-    
-    <!-- Version Manager (detecta atualizações) -->
-    <script type="module" src="src/version-manager.js"></script>
+    <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.min.js"></script>
     
     <!-- Splash Screen (mostra durante load) -->
     <script type="module" src="src/splash-screen.js"></script>
@@ -173,26 +193,11 @@
     <script type="module" src="src/app.js"></script>
 
     <script>
-        // Register Service Worker (atualizado com network-first strategy)
+        // Register Service Worker
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('service-worker.js')
-                .then(reg => {
-                    console.log('✓ Service Worker registrado', reg);
-                    
-                    // Monitora atualizações do SW
-                    reg.addEventListener('updatefound', () => {
-                        const newWorker = reg.installing;
-                        newWorker.addEventListener('statechange', () => {
-                            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                                console.log('🔄 Nova versão disponível');
-                                // Notifica user (já feito pelo version-manager)
-                            }
-                        });
-                    });
-                })
-                .catch(err => {
-                    console.warn('Service Worker registration failed:', err);
-                });
+                .then(reg => console.log('✓ Service Worker registrado', reg))
+                .catch(err => console.warn('Service Worker registration failed:', err));
         }
     </script>
 </body>

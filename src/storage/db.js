@@ -1,6 +1,7 @@
 /**
  * IndexedDB Manager
  * Gerencia todas as operações de banco de dados do CyclerRoute
+ * Estrutura: { id, name, description, waypoints, distance, duration, createdAt }
  */
 
 const DB_NAME = 'CyclerRouteDB';
@@ -38,6 +39,7 @@ export function openDB() {
         const store = database.createObjectStore(STORE_NAME, { keyPath: 'id' });
         store.createIndex('name', 'name', { unique: false });
         store.createIndex('createdAt', 'createdAt', { unique: false });
+        store.createIndex('distance', 'distance', { unique: false });
       }
     };
   });

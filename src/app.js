@@ -1,572 +1,580 @@
 /**
  * CyclerRoute - PWA para Ciclistas
- * Arquivo principal que inicializa e gerencia todo o app
+ * App principal com GPS real usando OSRM
  */
 
-import * as router from './router.js';
-import * as ui from './ui.js';
-import * as routeStore from './storage/route-store.js';
-import * as mapInit from './map/map-init.js';
-import * as routeCreator from './map/route-creator.js';
-import * as routeLoader from './map/route-loader.js';
-import { formatDistance } from './utils/distance.js';
+import * as db from './storage/db.js';
+import * as routeCreatorOSRM from './map/route-creator-osrm.js';
+import * as gpsNavigator from './map/gps-navigator.js';
 
 // ========================================
 // ESTADO GLOBAL
 // ========================================
 
-let currentRouteId = null;
-let deferredPrompt = null;
-let isOnline = navigator.onLine;
+let currentScreen = 'home';
+let currentRoute = null;
+let maps = {}; // Mapas Leaflet para cada tela
+let allRoutes = [];
 
 // ========================================
 // INICIALIZAÇÃO
 // ========================================
 
-window.addEventListener('DOMContentLoaded', initializeApp);
+window.addEventListener('DOMContentLoaded', initApp);
 
-async function initializeApp() {
+async function initApp() {
   console.log('🚴 CyclerRoute iniciando...');
-
-  // Cria splash screen
-  window.SplashScreen.create();
-  window.SplashScreen.updateStatus('Inicializando...');
-
-  try {
-    console.log('[App] 1/5 - Iniciando PWA setup...');
-    // Detecta instalação PWA
-    setupPWA();
-    window.SplashScreen.updateStatus('Preparando interface...');
-
-    console.log('[App] 2/5 - Iniciando conectividade...');
-    // Detecta mudanças de conectividade
-    setupConnectivity();
-
-    console.log('[App] 3/5 - Configurando UI event listeners...');
-    // Mapeia eventos de UI
-    setupUIEventListeners();
-    window.SplashScreen.updateStatus('Carregando dados...');
-
-    console.log('[App] 4/5 - Inicializando database...');
-    // Inicializa DB
-    await routeStore.getRoutes();
-
-    console.log('[App] 5/5 - Initialization complete!');
-    console.log('✓ CyclerRoute inicializado com sucesso');
-    
-    // Esconde splash com delay elegante
-    await new Promise(resolve => setTimeout(resolve, 400));
-    window.SplashScreen.hide();
-
-    // Debug: Log o estado do app
-    setTimeout(() => {
-      console.log('📋 Estado do App:');
-      console.log('- Router disponível:', typeof router);
-      console.log('- UI disponível:', typeof ui);
-      console.log('- RouteStore disponível:', typeof routeStore);
-      console.log('- MapInit disponível:', typeof mapInit);
-      console.log('- Home screen:', document.getElementById('screen-home')?.className);
-      console.log('- Botões encontrados:');
-      console.log('  - btn-create-route:', !!document.getElementById('btn-create-route'));
-      console.log('  - btn-my-routes:', !!document.getElementById('btn-my-routes'));
-      console.log('  - btn-import-route:', !!document.getElementById('btn-import-route'));
-    }, 500);
-
-  } catch (error) {
-    console.error('❌ Erro ao inicializar app:', error);
-    console.error('Stack:', error.stack);
-    window.SplashScreen.updateStatus('Erro ao carregar');
-    ui.showToast('Erro ao inicializar app', 'error');
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    window.SplashScreen.hide();
-  }
-}
-
-// ========================================
-// PWA SETUP
-// ========================================
-
-function setupPWA() {
-  // Detecta prompt de instalação
-  window.addEventListener('beforeinstallprompt', (e) => {
-    e.preventDefault();
-    deferredPrompt = e;
-    ui.setInstallButtonVisible(true);
-  });
-
-  // App foi instalada
-  window.addEventListener('appinstalled', () => {
-    console.log('✓ App instalado');
-    deferredPrompt = null;
-    ui.setInstallButtonVisible(false);
-  });
-
-  // Display mode changed
-  window.matchMedia('(display-mode: standalone)').addListener(() => {
-    console.log('Display mode mudou');
-  });
-}
-
-// ========================================
-// CONECTIVIDADE
-// ========================================
-
-function setupConnectivity() {
-  window.addEventListener('online', () => {
-    isOnline = true;
-    ui.showToast('Conectado à internet', 'success', 2000);
-  });
-
-  window.addEventListener('offline', () => {
-    isOnline = false;
-    ui.showToast('Desconectado da internet', 'warning', 2000);
-  });
-}
-
-// ========================================
-// EVENT LISTENERS - UI
-// ========================================
-
-function setupUIEventListeners() {
-  console.log('[App] Configurando event listeners...');
-
-  // Home Screen
-  const btnCreateRoute = document.getElementById('btn-create-route');
-  if (btnCreateRoute) {
-    btnCreateRoute.addEventListener('click', () => {
-      console.log('[App] Click em "Criar Rota"');
-      router.goToCreateRoute();
-      initCreateRouteScreen();
-    });
-    console.log('✓ btn-create-route listener OK');
-  } else {
-    console.error('❌ btn-create-route não encontrado!');
-  }
-
-  const btnMyRoutes = document.getElementById('btn-my-routes');
-  if (btnMyRoutes) {
-    btnMyRoutes.addEventListener('click', () => {
-      console.log('[App] Click em "Minhas Rotas"');
-      router.goToRoutesList();
-      initRoutesListScreen();
-    });
-    console.log('✓ btn-my-routes listener OK');
-  } else {
-    console.error('❌ btn-my-routes não encontrado!');
-  }
-
-  const btnImportRoute = document.getElementById('btn-import-route');
-  if (btnImportRoute) {
-    btnImportRoute.addEventListener('click', handleImportRoute);
-    console.log('✓ btn-import-route listener OK');
-  } else {
-    console.error('❌ btn-import-route não encontrado!');
-  }
-
-  // Create Route Screen
-  const btnBackCreate = document.getElementById('btn-back-create');
-  if (btnBackCreate) {
-    btnBackCreate.addEventListener('click', () => {
-      console.log('[App] Click em "Voltar" (Create)');
-      routeCreator.resetRoute();
-      mapInit.destroyMap();
-      router.goBack();
-    });
-    console.log('✓ btn-back-create listener OK');
-  }
-
-  const btnUndoPoint = document.getElementById('btn-undo-point');
-  if (btnUndoPoint) {
-    btnUndoPoint.addEventListener('click', () => {
-      console.log('[App] Click em "Desfazer"');
-      routeCreator.removeLastPoint();
-    });
-    console.log('✓ btn-undo-point listener OK');
-  }
-
-  const btnFinishRoute = document.getElementById('btn-finish-route');
-  if (btnFinishRoute) {
-    btnFinishRoute.addEventListener('click', () => {
-      console.log('[App] Click em "Salvar Rota"');
-      if (routeCreator.isRouteValid()) {
-        ui.showModal('dialog-save-route');
-        ui.focusElement('input-route-name');
-      } else {
-        ui.showToast('Adicione pelo menos 2 pontos', 'warning');
-      }
-    });
-    console.log('✓ btn-finish-route listener OK');
-  }
-
-  // Save Route Dialog
-  const btnCancelSave = document.getElementById('btn-cancel-save');
-  if (btnCancelSave) {
-    btnCancelSave.addEventListener('click', () => {
-      console.log('[App] Click em "Cancelar"');
-      ui.hideModal('dialog-save-route');
-    });
-    console.log('✓ btn-cancel-save listener OK');
-  }
-
-  const btnConfirmSave = document.getElementById('btn-confirm-save');
-  if (btnConfirmSave) {
-    btnConfirmSave.addEventListener('click', handleSaveRoute);
-    console.log('✓ btn-confirm-save listener OK');
-  }
-
-  // Allow Enter key to save
-  const inputRouteName = document.getElementById('input-route-name');
-  if (inputRouteName) {
-    inputRouteName.addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') {
-        handleSaveRoute();
-      }
-    });
-    console.log('✓ input-route-name listener OK');
-  }
-
-  // Routes List Screen
-  const btnBackList = document.getElementById('btn-back-list');
-  if (btnBackList) {
-    btnBackList.addEventListener('click', () => {
-      console.log('[App] Click em "Voltar" (List)');
-      router.goBack();
-    });
-    console.log('✓ btn-back-list listener OK');
-  }
-
-  // View Route Screen
-  const btnBackView = document.getElementById('btn-back-view');
-  if (btnBackView) {
-    btnBackView.addEventListener('click', () => {
-      console.log('[App] Click em "Voltar" (View)');
-      routeLoader.clearDisplay();
-      mapInit.destroyMap();
-      router.goBack();
-    });
-    console.log('✓ btn-back-view listener OK');
-  }
-
-  const btnNavigateRoute = document.getElementById('btn-navigate-route');
-  if (btnNavigateRoute) {
-    btnNavigateRoute.addEventListener('click', handleStartNavigation);
-    console.log('✓ btn-navigate-route listener OK');
-  }
-
-  const btnExportRoute = document.getElementById('btn-export-route');
-  if (btnExportRoute) {
-    btnExportRoute.addEventListener('click', handleExportRoute);
-    console.log('✓ btn-export-route listener OK');
-  }
-
-  const btnDeleteRoute = document.getElementById('btn-delete-route');
-  if (btnDeleteRoute) {
-    btnDeleteRoute.addEventListener('click', handleDeleteRoute);
-    console.log('✓ btn-delete-route listener OK');
-  }
-
-  // Navigate Screen
-  const btnStopNavigate = document.getElementById('btn-stop-navigate');
-  if (btnStopNavigate) {
-    btnStopNavigate.addEventListener('click', () => {
-      console.log('[App] Click em "Parar"');
-      routeLoader.stopNavigation();
-      router.goToViewRoute();
-      initViewRouteScreen();
-    });
-    console.log('✓ btn-stop-navigate listener OK');
-  }
-
-  // Install PWA button
-  const installBtn = document.getElementById('install-btn');
-  if (installBtn) {
-    installBtn.addEventListener('click', async () => {
-      if (!deferredPrompt) return;
-
-      deferredPrompt.prompt();
-      const { outcome } = await deferredPrompt.userChoice;
-      console.log(`Resultado instalação: ${outcome}`);
-      deferredPrompt = null;
-      ui.setInstallButtonVisible(false);
-    });
-    console.log('✓ install-btn listener OK');
-  }
-
-  console.log('[App] ✓ Todos os event listeners configurados!');
-}
-
-// ========================================
-// CREATE ROUTE SCREEN
-// ========================================
-
-function initCreateRouteScreen() {
-  // Inicializa mapa
-  mapInit.initMap('map', {
-    center: [-23.5505, -46.6333],
-    zoom: 13
-  });
-
-  // Inicializa criador de rota
-  routeCreator.initRouteCreator();
-
-  // Setup callbacks
-  routeCreator.onPointsChanged((count) => {
-    ui.updatePointsCount(count);
-  });
-
-  routeCreator.onDistanceChanged((distance) => {
-    ui.updateDistanceDisplay(distance);
-  });
-
-  // Click no mapa para adicionar ponto
-  mapInit.onMapClick((point) => {
-    routeCreator.addPoint(point);
-  });
-
-  // Atualiza display
-  ui.updatePointsCount(0);
-  ui.updateDistanceDisplay(0);
-}
-
-// ========================================
-// ROUTES LIST SCREEN
-// ========================================
-
-async function initRoutesListScreen() {
-  try {
-    const routes = await routeStore.getRoutes();
-
-    ui.renderRoutesList(routes, async (routeId) => {
-      // Carrega rota selecionada
-      currentRouteId = routeId;
-      const route = await routeStore.getRouteById(routeId);
-
-      // Vai para visualizar
-      router.goToViewRoute();
-      initViewRouteScreen();
-    });
-  } catch (error) {
-    console.error('Erro ao carregar rotas:', error);
-    ui.showToast('Erro ao carregar rotas', 'error');
-  }
-}
-
-// ========================================
-// VIEW ROUTE SCREEN
-// ========================================
-
-async function initViewRouteScreen() {
-  if (!currentRouteId) {
-    router.goBack();
-    return;
-  }
-
-  try {
-    // Carrega rota
-    const route = await routeStore.getRouteById(currentRouteId);
-
-    // Renderiza info
-    ui.renderRouteInfo(route);
-
-    // Inicializa mapa
-    mapInit.initMap('map-view', {
-      center: [route.points[0].lat, route.points[0].lng],
-      zoom: 13
-    });
-
-    // Carrega rota no mapa
-    routeLoader.loadRoute(route);
-  } catch (error) {
-    console.error('Erro ao visualizar rota:', error);
-    ui.showToast('Erro ao visualizar rota', 'error');
-    router.goBack();
-  }
-}
-
-// ========================================
-// NAVIGATE ROUTE SCREEN
-// ========================================
-
-function initNavigateRouteScreen() {
-  // Inicializa mapa para navegação
-  const route = routeLoader.getDisplayedRoute();
   
-  if (!route) {
-    router.goBack();
-    return;
-  }
-
-  mapInit.initMap('map-navigate', {
-    center: [route.points[0].lat, route.points[0].lng],
-    zoom: 15
-  });
-
-  // Carrega rota no mapa
-  routeLoader.loadRoute(route);
-
-  // Inicia navegação
-  routeLoader.startNavigation({
-    onProgressUpdate: (status) => {
-      ui.updateNavigationStatus(status);
-    },
-    onPointReached: (index, point) => {
-      console.log(`Chegou ao ponto ${index + 1}`);
-      ui.showToast(`Ponto ${index + 1} atingido!`, 'success', 1500);
-    },
-    onNavigationComplete: () => {
-      ui.showToast('Rota concluída!', 'success', 3000);
-    },
-    onSimulationMode: (enabled) => {
-      if (enabled) {
-        ui.showToast('Modo teste: clique no mapa para avançar', 'info', 3000);
+  try {
+    // Splash screen
+    if (window.SplashScreen) {
+      window.SplashScreen.create();
+      window.SplashScreen.updateStatus('Carregando...');
+    }
+    
+    // Inicializa DB
+    await db.openDB();
+    console.log('✓ Database pronto');
+    
+    // Carrega rotas
+    allRoutes = await loadAllRoutes();
+    console.log(`✓ ${allRoutes.length} rotas carregadas`);
+    
+    // Configura event listeners
+    setupEventListeners();
+    console.log('✓ Event listeners configurados');
+    
+    // Inicializa mapa da home
+    initHomeMap();
+    console.log('✓ Mapa home inicializado');
+    
+    // Esconde splash
+    setTimeout(() => {
+      if (window.SplashScreen) {
+        window.SplashScreen.hide();
       }
-    }
+    }, 800);
+    
+    console.log('✅ App pronto!');
+  } catch (error) {
+    console.error('❌ Erro ao inicializar:', error);
+    alert('Erro ao inicializar o app');
+  }
+}
+
+// ========================================
+// NAVEGAÇÃO ENTRE TELAS
+// ========================================
+
+function showScreen(screenName) {
+  // Esconde todas as telas
+  document.querySelectorAll('.screen').forEach(screen => {
+    screen.classList.remove('active');
   });
+  
+  // Mostra tela solicitada
+  const screen = document.getElementById(`screen-${screenName}`);
+  if (screen) {
+    screen.classList.add('active');
+    currentScreen = screenName;
+    
+    // Callbacks específicas por tela
+    if (screenName === 'create') {
+      initCreateMap();
+    } else if (screenName === 'routes-list') {
+      renderRoutesList();
+    }
+  }
+}
 
-  // Atualiza UI inicial
-  const status = routeLoader.getNavigationStatus();
-  if (status) {
-    ui.updateNavigationStatus(status);
+function goHome() {
+  showScreen('home');
+}
+
+function goToCreate() {
+  showScreen('create');
+}
+
+function goToRoutesList() {
+  showScreen('routes-list');
+}
+
+function goToViewRoute(routeId) {
+  currentRoute = allRoutes.find(r => r.id === routeId);
+  if (currentRoute) {
+    showScreen('view-route');
+    initViewMap();
+  }
+}
+
+function goToNavigate() {
+  if (currentRoute) {
+    showScreen('navigate');
+    initNavigateMap();
   }
 }
 
 // ========================================
-// HANDLERS - CREATE/SAVE ROUTE
+// MAPA HOME
 // ========================================
 
-async function handleSaveRoute() {
-  const routeName = ui.getInputValue('input-route-name');
-
-  if (!routeName) {
-    ui.showToast('Digite um nome para a rota', 'warning');
-    return;
-  }
-
-  if (!routeCreator.isRouteValid()) {
-    ui.showToast('Rota inválida', 'error');
-    return;
-  }
-
-  try {
-    const points = routeCreator.getRoutePoints();
-    await routeStore.saveRoute(routeName, points);
-
-    ui.hideModal('dialog-save-route');
-    ui.clearInput('input-route-name');
-    routeCreator.resetRoute();
-    mapInit.destroyMap();
-
-    ui.showToast('✓ Rota salva com sucesso', 'success', 2000);
-    router.goToRoutesList();
-    initRoutesListScreen();
-  } catch (error) {
-    console.error('Erro ao salvar rota:', error);
-    ui.showToast('Erro ao salvar rota', 'error');
-  }
-}
-
-// ========================================
-// HANDLERS - VIEW/NAVIGATE ROUTE
-// ========================================
-
-function handleStartNavigation() {
-  router.goToNavigate();
-  initNavigateRouteScreen();
-}
-
-async function handleExportRoute() {
-  if (!currentRouteId) return;
-
-  try {
-    const json = await routeStore.exportRoute(currentRouteId);
-    const route = await routeStore.getRouteById(currentRouteId);
-    const filename = `rota-${route.name}-${Date.now()}.json`;
-
-    ui.downloadFile(json, filename, 'application/json');
-    ui.showToast('✓ Rota exportada', 'success', 2000);
-  } catch (error) {
-    console.error('Erro ao exportar:', error);
-    ui.showToast('Erro ao exportar rota', 'error');
-  }
-}
-
-function handleDeleteRoute() {
-  if (!currentRouteId) return;
-
-  ui.showConfirmDialog(
-    'Deletar Rota',
-    'Tem certeza que deseja deletar esta rota?',
-    async () => {
-      try {
-        await routeStore.deleteRouteData(currentRouteId);
-        ui.showToast('✓ Rota deletada', 'success', 2000);
-        routeLoader.clearDisplay();
-        mapInit.destroyMap();
-        router.goToRoutesList();
-        initRoutesListScreen();
-      } catch (error) {
-        console.error('Erro ao deletar:', error);
-        ui.showToast('Erro ao deletar rota', 'error');
+function initHomeMap() {
+  if (maps.home) return;
+  
+  const mapElement = document.getElementById('map-home');
+  if (!mapElement) return;
+  
+  // Cria mapa
+  maps.home = L.map('map-home', {
+    zoomControl: true,
+    attributionControl: true
+  }).setView([-23.5505, -46.6333], 13); // São Paulo como padrão
+  
+  // Adiciona tiles
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors',
+    maxZoom: 19
+  }).addTo(maps.home);
+  
+  // Tenta centralizar no usuário
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        maps.home.setView([latitude, longitude], 15);
+        
+        // Adiciona marcador
+        L.marker([latitude, longitude]).addTo(maps.home)
+          .bindPopup('Você está aqui')
+          .openPopup();
+      },
+      (error) => {
+        console.warn('Erro ao obter localização:', error);
       }
-    }
-  );
-}
-
-// ========================================
-// HANDLERS - IMPORT/EXPORT
-// ========================================
-
-async function handleImportRoute() {
-  try {
-    const file = await ui.openFileDialog();
-    const content = await ui.readFile(file);
-    const imported = await routeStore.importRoutes(content);
-
-    ui.showToast(`✓ ${imported} rota(s) importada(s)`, 'success', 2000);
-    router.goToRoutesList();
-    initRoutesListScreen();
-  } catch (error) {
-    console.error('Erro ao importar:', error);
-    ui.showToast('Erro ao importar rota: ' + error.message, 'error');
+    );
   }
 }
 
 // ========================================
-// KEYBOARD SHORTCUTS
+// CRIAR ROTA
 // ========================================
 
-window.addEventListener('keydown', (e) => {
-  // ESC para voltar
-  if (e.key === 'Escape') {
-    const currentScreen = router.getCurrentScreen();
-    if (currentScreen !== 'screen-home') {
-      router.goBack();
-    }
-  }
-});
-
-// ========================================
-// RESIZE HANDLER
-// ========================================
-
-window.addEventListener('resize', () => {
-  mapInit.invalidateSize();
-});
-
-// ========================================
-// EXPORTS (para debug em console)
-// ========================================
-
-window.CyclerRoute = {
-  router,
-  ui,
-  routeStore,
-  mapInit,
-  routeCreator,
-  routeLoader,
-  goHome: () => router.goHome(),
-  showToast: (msg, type) => ui.showToast(msg, type),
-  getStats: () => routeStore.getStatistics()
+let createState = {
+  pointsCount: 0,
+  distance: 0,
+  duration: 0,
+  canSave: false
 };
 
-console.log('💡 Use window.CyclerRoute para acessar funções de debug');
+function initCreateMap() {
+  if (maps.create) {
+    // Limpa rota anterior
+    routeCreatorOSRM.clearRoute();
+    updateCreateUI();
+    return;
+  }
+  
+  const mapElement = document.getElementById('map-create');
+  if (!mapElement) return;
+  
+  // Cria mapa
+  maps.create = L.map('map-create', {
+    zoomControl: true,
+    attributionControl: true
+  }).setView([-23.5505, -46.6333], 13);
+  
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors',
+    maxZoom: 19
+  }).addTo(maps.create);
+  
+  // Centraliza no usuário
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition((position) => {
+      const { latitude, longitude } = position.coords;
+      maps.create.setView([latitude, longitude], 15);
+    });
+  }
+  
+  // Inicializa criador de rotas
+  routeCreatorOSRM.initRouteCreator(maps.create);
+  
+  // Configura callbacks
+  routeCreatorOSRM.setCallbacks({
+    onWaypointAdded: (count) => {
+      createState.pointsCount = count;
+      updateCreateUI();
+    },
+    onRouteCalculated: (routeData) => {
+      createState.distance = routeData.distance;
+      createState.duration = routeData.duration;
+      createState.canSave = true;
+      updateCreateUI();
+    },
+    onRouteCleared: () => {
+      createState = { pointsCount: 0, distance: 0, duration: 0, canSave: false };
+      updateCreateUI();
+    }
+  });
+  
+  updateCreateUI();
+}
+
+function updateCreateUI() {
+  // Atualiza contadores
+  document.getElementById('points-count').textContent = createState.pointsCount;
+  
+  const distKm = (createState.distance / 1000).toFixed(2);
+  document.getElementById('distance-display').textContent = `${distKm} km`;
+  
+  const durationMin = Math.round(createState.duration / 60);
+  document.getElementById('duration-display').textContent = `${durationMin} min`;
+  
+  // Habilita/desabilita botão salvar
+  const btnSave = document.getElementById('btn-save-route');
+  if (btnSave) {
+    btnSave.disabled = !createState.canSave;
+  }
+}
+
+function clearRoute() {
+  routeCreatorOSRM.clearRoute();
+  createState = { pointsCount: 0, distance: 0, duration: 0, canSave: false };
+  updateCreateUI();
+}
+
+function openSaveDialog() {
+  if (!createState.canSave) return;
+  
+  const dialog = document.getElementById('dialog-save-route');
+  dialog.style.display = 'flex';
+  
+  // Limpa campos
+  document.getElementById('input-route-name').value = '';
+  document.getElementById('input-route-description').value = '';
+  
+  // Foca no input
+  setTimeout(() => {
+    document.getElementById('input-route-name').focus();
+  }, 100);
+}
+
+function closeSaveDialog() {
+  document.getElementById('dialog-save-route').style.display = 'none';
+}
+
+async function confirmSaveRoute() {
+  const name = document.getElementById('input-route-name').value.trim();
+  const description = document.getElementById('input-route-description').value.trim();
+  
+  if (!name) {
+    alert('Digite um nome para a rota');
+    return;
+  }
+  
+  const routeData = routeCreatorOSRM.getRouteData();
+  if (!routeData) {
+    alert('Nenhuma rota para salvar');
+    return;
+  }
+  
+  try {
+    const route = {
+      id: generateId(),
+      name: name,
+      description: description,
+      waypoints: routeData.waypoints,
+      distance: routeData.distance,
+      duration: routeData.duration,
+      createdAt: new Date().toISOString()
+    };
+    
+    await db.writeRoute(route);
+    console.log('✓ Rota salva:', route);
+    
+    // Atualiza lista
+    allRoutes = await loadAllRoutes();
+    
+    // Fecha dialog
+    closeSaveDialog();
+    
+    // Feedback
+    alert('Rota salva com sucesso!');
+    
+    // Volta para home
+    goHome();
+  } catch (error) {
+    console.error('Erro ao salvar rota:', error);
+    alert('Erro ao salvar rota');
+  }
+}
+
+// ========================================
+// LISTAR ROTAS
+// ========================================
+
+async function loadAllRoutes() {
+  try {
+    return await db.getAllRoutes();
+  } catch (error) {
+    console.error('Erro ao carregar rotas:', error);
+    return [];
+  }
+}
+
+function renderRoutesList() {
+  const container = document.getElementById('routes-list-container');
+  const emptyState = document.getElementById('empty-routes');
+  
+  if (allRoutes.length === 0) {
+    container.style.display = 'none';
+    emptyState.style.display = 'flex';
+    return;
+  }
+  
+  container.style.display = 'block';
+  emptyState.style.display = 'none';
+  
+  container.innerHTML = allRoutes.map(route => {
+    const distKm = (route.distance / 1000).toFixed(2);
+    const durationMin = Math.round(route.duration / 60);
+    const date = new Date(route.createdAt).toLocaleDateString('pt-BR');
+    
+    return `
+      <div class="route-card" data-id="${route.id}">
+        <div class="route-card-header">
+          <h3 class="route-card-title">${route.name}</h3>
+          <button class="btn-delete-route" data-id="${route.id}">🗑️</button>
+        </div>
+        ${route.description ? `<p class="route-card-description">${route.description}</p>` : ''}
+        <div class="route-card-stats">
+          <span>📏 ${distKm} km</span>
+          <span>⏱️ ${durationMin} min</span>
+          <span>📅 ${date}</span>
+        </div>
+        <button class="btn btn-primary btn-open-route" data-id="${route.id}">
+          Abrir Rota
+        </button>
+      </div>
+    `;
+  }).join('');
+  
+  // Event listeners para botões
+  container.querySelectorAll('.btn-open-route').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const routeId = e.target.dataset.id;
+      goToViewRoute(routeId);
+    });
+  });
+  
+  container.querySelectorAll('.btn-delete-route').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const routeId = e.target.dataset.id;
+      await deleteRoute(routeId);
+    });
+  });
+}
+
+async function deleteRoute(routeId) {
+  if (!confirm('Tem certeza que deseja excluir esta rota?')) {
+    return;
+  }
+  
+  try {
+    await db.deleteRoute(routeId);
+    console.log('✓ Rota excluída:', routeId);
+    
+    // Atualiza lista
+    allRoutes = await loadAllRoutes();
+    renderRoutesList();
+    
+    alert('Rota excluída com sucesso!');
+  } catch (error) {
+    console.error('Erro ao excluir rota:', error);
+    alert('Erro ao excluir rota');
+  }
+}
+
+// ========================================
+// VISUALIZAR ROTA
+// ========================================
+
+function initViewMap() {
+  if (!currentRoute) return;
+  
+  const mapElement = document.getElementById('map-view');
+  if (!mapElement) return;
+  
+  // Remove mapa anterior
+  if (maps.view) {
+    maps.view.remove();
+  }
+  
+  // Cria novo mapa
+  maps.view = L.map('map-view', {
+    zoomControl: true,
+    attributionControl: true
+  }).setView([-23.5505, -46.6333], 13);
+  
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors',
+    maxZoom: 19
+  }).addTo(maps.view);
+  
+  // Carrega rota no mapa
+  routeCreatorOSRM.loadRouteForViewing(currentRoute, maps.view);
+  
+  // Atualiza informações
+  document.getElementById('view-route-name').textContent = currentRoute.name;
+  document.getElementById('view-route-description').textContent = currentRoute.description || '';
+  
+  const distKm = (currentRoute.distance / 1000).toFixed(2);
+  document.getElementById('view-distance').textContent = `${distKm} km`;
+  
+  const durationMin = Math.round(currentRoute.duration / 60);
+  document.getElementById('view-duration').textContent = `${durationMin} min`;
+}
+
+// ========================================
+// NAVEGAÇÃO GPS
+// ========================================
+
+let navigationState = {
+  startTime: null,
+  isOffRoute: false
+};
+
+function initNavigateMap() {
+  if (!currentRoute) return;
+  
+  const mapElement = document.getElementById('map-navigate');
+  if (!mapElement) return;
+  
+  // Remove mapa anterior
+  if (maps.navigate) {
+    maps.navigate.remove();
+  }
+  
+  // Cria novo mapa
+  maps.navigate = L.map('map-navigate', {
+    zoomControl: true,
+    attributionControl: true
+  }).setView([-23.5505, -46.6333], 17);
+  
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors',
+    maxZoom: 19
+  }).addTo(maps.navigate);
+  
+  // Inicia navegação
+  navigationState.startTime = Date.now();
+  navigationState.isOffRoute = false;
+  
+  gpsNavigator.startNavigation(currentRoute, maps.navigate, {
+    onPositionUpdate: (data) => {
+      updateNavigationUI(data);
+    },
+    onOffRoute: (distance) => {
+      navigationState.isOffRoute = true;
+      document.getElementById('nav-warning').style.display = 'block';
+      document.getElementById('nav-status').textContent = `Fora da rota (${distance.toFixed(0)}m)`;
+    },
+    onBackOnRoute: () => {
+      navigationState.isOffRoute = false;
+      document.getElementById('nav-warning').style.display = 'none';
+      document.getElementById('nav-status').textContent = 'Na rota';
+    },
+    onDestinationReached: (summary) => {
+      showNavigationComplete(summary);
+    }
+  });
+  
+  document.getElementById('nav-status').textContent = 'Aguardando GPS...';
+}
+
+function updateNavigationUI(data) {
+  // Status
+  if (!navigationState.isOffRoute) {
+    document.getElementById('nav-status').textContent = 'Na rota';
+  }
+  
+  // Distância restante
+  const distKm = (data.distanceToDestination / 1000).toFixed(2);
+  document.getElementById('nav-distance-remaining').textContent = `${distKm} km`;
+  
+  // Velocidade
+  const speed = data.speed.toFixed(1);
+  document.getElementById('nav-speed').textContent = `${speed} km/h`;
+  
+  // Tempo decorrido
+  const elapsed = Date.now() - navigationState.startTime;
+  const minutes = Math.floor(elapsed / 60000);
+  const seconds = Math.floor((elapsed % 60000) / 1000);
+  document.getElementById('nav-time-elapsed').textContent = 
+    `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+}
+
+function stopNavigation() {
+  gpsNavigator.stopNavigation();
+  goToViewRoute(currentRoute.id);
+}
+
+function showNavigationComplete(summary) {
+  const dialog = document.getElementById('dialog-navigation-complete');
+  dialog.style.display = 'flex';
+  
+  // Formata tempo
+  const minutes = Math.floor(summary.duration / 60000);
+  const seconds = Math.floor((summary.duration % 60000) / 1000);
+  document.getElementById('summary-time').textContent = 
+    `${minutes}min ${seconds}s`;
+  
+  // Formata distância
+  const distKm = (summary.distance / 1000).toFixed(2);
+  document.getElementById('summary-distance').textContent = `${distKm} km`;
+}
+
+function closeNavigationComplete() {
+  document.getElementById('dialog-navigation-complete').style.display = 'none';
+  goHome();
+}
+
+// ========================================
+// EVENT LISTENERS
+// ========================================
+
+function setupEventListeners() {
+  // Home
+  document.getElementById('btn-create-route')?.addEventListener('click', goToCreate);
+  document.getElementById('btn-my-routes')?.addEventListener('click', goToRoutesList);
+  
+  // Create
+  document.getElementById('btn-back-create')?.addEventListener('click', goHome);
+  document.getElementById('btn-clear-route')?.addEventListener('click', clearRoute);
+  document.getElementById('btn-save-route')?.addEventListener('click', openSaveDialog);
+  
+  // Save dialog
+  document.getElementById('btn-cancel-save')?.addEventListener('click', closeSaveDialog);
+  document.getElementById('btn-confirm-save')?.addEventListener('click', confirmSaveRoute);
+  
+  // Routes list
+  document.getElementById('btn-back-list')?.addEventListener('click', goHome);
+  document.getElementById('btn-create-first-route')?.addEventListener('click', goToCreate);
+  
+  // View route
+  document.getElementById('btn-back-view')?.addEventListener('click', goToRoutesList);
+  document.getElementById('btn-navigate-route')?.addEventListener('click', goToNavigate);
+  
+  // Navigate
+  document.getElementById('btn-stop-navigation')?.addEventListener('click', stopNavigation);
+  document.getElementById('btn-close-summary')?.addEventListener('click', closeNavigationComplete);
+}
+
+// ========================================
+// UTILIDADES
+// ========================================
+
+function generateId() {
+  return `route_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+}

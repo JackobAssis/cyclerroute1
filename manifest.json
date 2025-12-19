@@ -1,7 +1,7 @@
 {
-  "name": "CyclerRoute - Rotas de Ciclismo",
+  "name": "CyclerRoute - GPS para Ciclistas",
   "short_name": "CyclerRoute",
-  "description": "PWA para ciclistas criar, visualizar e compartilhar rotas de ciclismo",
+  "description": "PWA de GPS real para ciclistas - Crie, salve e percorra rotas com navegação em tempo real",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
@@ -14,7 +14,7 @@
       "src": "assets/icons/icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
-      "purpose": "any"
+      "purpose": "any maskable"
     }
   ],
   "categories": ["sports", "navigation"]
