@@ -82,18 +82,28 @@ body {
    ======================================== */
 
 
-/* Floating controls fix: mais alto e não cortado */
+
+/* Floating controls fix: nunca cortado, sempre visível */
 .floating-controls {
-  position: absolute;
+  position: fixed;
   left: 0;
   right: 0;
-  bottom: 32px; /* sobe os botões */
+  bottom: 24px;
   z-index: 1000;
-  padding: 0 20px 0 20px;
+  padding: 0 16px;
   background: none;
   pointer-events: none;
   display: flex;
   justify-content: center;
+  width: 100vw;
+  box-sizing: border-box;
+}
+
+@media (max-width: 700px) {
+  .floating-controls {
+    bottom: 12px;
+    padding: 0 4vw;
+  }
 }
 
 .floating-controls > * {
@@ -107,7 +117,7 @@ body {
   align-items: flex-end;
   justify-content: center;
   width: 100%;
-  max-width: 400px;
+  max-width: 420px;
 }
 
 /* ========================================
