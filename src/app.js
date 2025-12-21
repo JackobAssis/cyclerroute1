@@ -268,8 +268,11 @@ function initCreateMap() {
     console.warn('Não foi possível iniciar rastreamento passivo:', e);
   }
 
-  // Cria controles flutuantes (botões grandes e responsivos)
-  createFloatingControls(maps.create);
+  // Remove controles flutuantes se existirem
+  if (createControls.container) {
+    createControls.container.remove();
+    createControls.container = null;
+  }
 }
 
 function updateCreateUI() {
@@ -295,124 +298,7 @@ function clearRoute() {
   updateCreateUI();
 }
 
-/**
- * Cria botões flutuantes para tela de criação
- * @param {L.Map} mapInstance
- */
-function createFloatingControls(mapInstance) {
-  // Remove se já existir
-  if (createControls.container) {
-    createControls.container.remove();
-  }
-
-  const container = document.createElement('div');
-  container.className = 'create-controls';
-  container.style.cssText = `
-    position: absolute;
-    right: 12px;
-    top: 12px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    z-index: 1600;
-    max-width: 64px;
-  `;
-
-  const btnStyle = `
-    display:flex;align-items:center;justify-content:center;width:64px;height:48px;border-radius:10px;background:#1db854;color:#fff;font-weight:600;border:none;box-shadow:0 6px 18px rgba(0,0,0,0.25);cursor:pointer
-  `;
-
-  const btnAdd = document.createElement('button');
-  btnAdd.id = 'btn-add-current';
-  btnAdd.title = 'Adicionar minha posição';
-  btnAdd.innerText = '➕';
-  btnAdd.style.cssText = btnStyle;
-  btnAdd.addEventListener('click', () => {
-    if (createControls.currentMarker) {
-      const latlng = createControls.currentMarker.getLatLng();
-      routeCreatorOSRM.addWaypointFromPoint({ lat: latlng.lat, lng: latlng.lng });
-    } else {
-      // fallback para posição do centro do mapa
-      const c = mapInstance.getCenter();
-      routeCreatorOSRM.addWaypoint(c.lat, c.lng);
-    }
-  });
-
-  const btnUndo = document.createElement('button');
-  btnUndo.id = 'btn-undo-point';
-  btnUndo.title = 'Remover último ponto';
-  btnUndo.innerText = '↶';
-  btnUndo.style.cssText = btnStyle.replace('#1db854', '#ff7043');
-  btnUndo.addEventListener('click', () => {
-    routeCreatorOSRM.removeLastWaypoint();
-  });
-
-  const btnClear = document.createElement('button');
-  btnClear.id = 'btn-clear-route-float';
-  btnClear.title = 'Limpar rota';
-  btnClear.innerText = '🗑';
-  btnClear.style.cssText = btnStyle.replace('#1db854', '#9e9e9e');
-  btnClear.addEventListener('click', () => {
-    if (confirm('Limpar rota atual?')) {
-      routeCreatorOSRM.clearRoute();
-    }
-  });
-
-  const btnGPS = document.createElement('button');
-  btnGPS.id = 'btn-toggle-gps';
-  btnGPS.title = 'Ativar/Desativar GPS';
-  btnGPS.innerText = '📍';
-  btnGPS.style.cssText = btnStyle.replace('#1db854', '#2196F3');
-  btnGPS.addEventListener('click', () => {
-    if (createControls.gpsActive) {
-      gpsNavigator.stopPassiveTracking();
-      createControls.gpsActive = false;
-      btnGPS.style.opacity = '0.6';
-    } else {
-      gpsNavigator.startPassiveTracking((pos) => {
-        if (!createControls.currentMarker) {
-          createControls.currentMarker = L.circleMarker([pos.lat, pos.lng], {
-            color: '#ffaa00',
-            fillColor: '#ffaa00',
-            fillOpacity: 0.9,
-            radius: 8,
-            weight: 3
-          }).addTo(mapInstance);
-        } else {
-          createControls.currentMarker.setLatLng([pos.lat, pos.lng]);
-        }
-      });
-      createControls.gpsActive = true;
-      btnGPS.style.opacity = '1';
-    }
-  });
-
-  // Snap toggle (visual only, kept for future logic)
-  const btnSnap = document.createElement('button');
-  btnSnap.id = 'btn-toggle-snap';
-  btnSnap.title = 'Alternar snap a vias (OSRM)';
-  btnSnap.innerText = '🔗';
-  btnSnap.style.cssText = btnStyle.replace('#1db854', '#673ab7');
-  btnSnap.addEventListener('click', () => {
-    createControls.snapToRoads = !createControls.snapToRoads;
-    btnSnap.style.opacity = createControls.snapToRoads ? '1' : '0.5';
-    // Atualmente o roteador OSRM já respeita os waypoints na ordem; no futuro podemos alternar comportamento aqui
-  });
-
-  container.appendChild(btnAdd);
-  container.appendChild(btnUndo);
-  container.appendChild(btnClear);
-  container.appendChild(btnGPS);
-  container.appendChild(btnSnap);
-
-  // Anexa ao container do mapa
-  const mapContainer = document.getElementById('map-create');
-  if (mapContainer) {
-    mapContainer.style.position = 'relative';
-    mapContainer.appendChild(container);
-    createControls.container = container;
-  }
-}
+// ...existing code...
 
 function openSaveDialog() {
   if (!createState.canSave) return;
