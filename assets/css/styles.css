@@ -81,15 +81,19 @@ body {
    FLOATING CONTROLS
    ======================================== */
 
+
+/* Floating controls fix: mais alto e não cortado */
 .floating-controls {
   position: absolute;
-  bottom: 0;
   left: 0;
   right: 0;
+  bottom: 32px; /* sobe os botões */
   z-index: 1000;
-  padding: 20px;
-  background: linear-gradient(to top, var(--color-bg) 0%, transparent 100%);
+  padding: 0 20px 0 20px;
+  background: none;
   pointer-events: none;
+  display: flex;
+  justify-content: center;
 }
 
 .floating-controls > * {
@@ -98,31 +102,52 @@ body {
 
 .home-controls {
   display: flex;
-  flex-direction: column;
-  gap: 12px;
-  align-items: center;
+  flex-direction: row;
+  gap: 16px;
+  align-items: flex-end;
+  justify-content: center;
+  width: 100%;
+  max-width: 400px;
 }
 
 /* ========================================
    BOTÕES
    ======================================== */
 
+/* Botões estilo moderno igual criar rota */
 .btn {
-  padding: 14px 24px;
+  padding: 14px 32px;
   border: none;
-  border-radius: var(--radius);
-  font-size: 16px;
-  font-weight: 600;
+  border-radius: 12px;
+  font-size: 18px;
+  font-weight: 700;
   cursor: pointer;
-  transition: var(--transition);
-  box-shadow: var(--shadow);
+  transition: 0.2s all cubic-bezier(.4,0,.2,1);
+  box-shadow: 0 2px 16px 0 rgba(50,255,126,0.10);
   text-align: center;
   min-width: 160px;
+  background: linear-gradient(90deg, #1aff8a 0%, #0fd976 100%);
+  color: #151A19;
+  outline: none;
 }
 
-.btn:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-neon);
+.btn-primary {
+  background: linear-gradient(90deg, #1aff8a 0%, #0fd976 100%);
+  color: #151A19;
+  box-shadow: 0 2px 16px 0 rgba(50,255,126,0.18);
+}
+
+.btn-secondary {
+  background: rgba(50,255,126,0.08);
+  border: 1px solid #1aff8a;
+  color: #1aff8a;
+  box-shadow: none;
+}
+
+.btn:hover, .btn:focus {
+  transform: translateY(-3px) scale(1.03);
+  box-shadow: 0 4px 24px 0 rgba(50,255,126,0.25);
+  filter: brightness(1.08);
 }
 
 .btn:active {
