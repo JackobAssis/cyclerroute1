@@ -605,24 +605,40 @@ function setupEventListeners() {
   // Home
   document.getElementById('btn-create-route')?.addEventListener('click', goToCreate);
   document.getElementById('btn-my-routes')?.addEventListener('click', goToRoutesList);
-  
+
   // Create
   document.getElementById('btn-back-create')?.addEventListener('click', goHome);
   document.getElementById('btn-clear-route')?.addEventListener('click', clearRoute);
   document.getElementById('btn-save-route')?.addEventListener('click', openSaveDialog);
-  
+
+  // Novo: Adicionar minha posição
+  document.getElementById('btn-add-current')?.addEventListener('click', () => {
+    if (createControls.currentMarker) {
+      const latlng = createControls.currentMarker.getLatLng();
+      routeCreatorOSRM.addWaypointFromPoint({ lat: latlng.lat, lng: latlng.lng });
+    } else if (maps.create) {
+      const c = maps.create.getCenter();
+      routeCreatorOSRM.addWaypoint(c.lat, c.lng);
+    }
+  });
+
+  // Novo: Desfazer ponto
+  document.getElementById('btn-undo-point')?.addEventListener('click', () => {
+    routeCreatorOSRM.removeLastWaypoint();
+  });
+
   // Save dialog
   document.getElementById('btn-cancel-save')?.addEventListener('click', closeSaveDialog);
   document.getElementById('btn-confirm-save')?.addEventListener('click', confirmSaveRoute);
-  
+
   // Routes list
   document.getElementById('btn-back-list')?.addEventListener('click', goHome);
   document.getElementById('btn-create-first-route')?.addEventListener('click', goToCreate);
-  
+
   // View route
   document.getElementById('btn-back-view')?.addEventListener('click', goToRoutesList);
   document.getElementById('btn-navigate-route')?.addEventListener('click', goToNavigate);
-  
+
   // Navigate
   document.getElementById('btn-stop-navigation')?.addEventListener('click', stopNavigation);
   document.getElementById('btn-close-summary')?.addEventListener('click', closeNavigationComplete);
