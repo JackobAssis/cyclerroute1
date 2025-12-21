@@ -3,7 +3,7 @@
  * App principal com GPS real usando OSRM
  */
 
-import * as db from './storage/db.js';
+import * as routeStore from './storage/route-store.js';
 import * as routeCreatorOSRM from './map/route-creator-osrm.js';
 import * as gpsNavigator from './map/gps-navigator.js';
 import { createCurrentIcon } from './map/map-init.js';
@@ -16,7 +16,7 @@ let currentScreen = 'home';
 let currentRoute = null;
 let maps = {}; // Mapas Leaflet para cada tela
 let allRoutes = [];
-
+// ...existing code...
 // ========================================
 // INICIALIZAÇÃO
 // ========================================
@@ -34,9 +34,8 @@ async function initApp() {
     }
     
     // Inicializa DB
-    await db.openDB();
+    await routeStore.readAllRoutes(); // Garante que o banco está pronto
     console.log('✓ Database pronto');
-    
     // Carrega rotas
     allRoutes = await loadAllRoutes();
     console.log(`✓ ${allRoutes.length} rotas carregadas`);
@@ -346,9 +345,8 @@ async function confirmSaveRoute() {
       createdAt: new Date().toISOString()
     };
     
-    await db.writeRoute(route);
-    console.log('✓ Rota salva:', route);
-    
+    await routeStore.saveRoute(name, routeData.waypoints);
+    console.log('✓ Rota salva:', name);
     // Atualiza lista
     allRoutes = await loadAllRoutes();
     
@@ -372,7 +370,7 @@ async function confirmSaveRoute() {
 
 async function loadAllRoutes() {
   try {
-    return await db.getAllRoutes();
+    return await routeStore.getRoutes();
   } catch (error) {
     console.error('Erro ao carregar rotas:', error);
     return [];
